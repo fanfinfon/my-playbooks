@@ -1,0 +1,40 @@
+---
+- name: Install Docker on Raspberry Pi Cluster
+  hosts: all
+  become: yes  # Runs as sudo
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install basic dependencies
+      apt:
+        name:
+          - curl
+          - git
+        state: present
+
+    - name: Download official Docker installation script
+      get_url:
+        url: https://get.docker.com
+        dest: /tmp/get-docker.sh
+        mode: '0755'
+
+    - name: Run Docker installation script
+      command: sh /tmp/get-docker.sh
+      args:
+        creates: /usr/bin/docker  # Skips this if Docker is already installed
+
+    - name: Add 'pi' user to docker group
+      user:
+        name: pi
+        groups: docker
+        append: yes
+      # This allows you to run 'docker' without 'sudo' later
+
+    - name: Enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
