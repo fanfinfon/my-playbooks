@@ -1,19 +1,14 @@
 ---
-- name: Deploy Button Cricute App
+- name: Deploy Button Cricute App (Auto-Fix USB)
   hosts: all
   become: yes
   vars:
-    # This is the repo you asked for
     repo_url: "https://github.com/fanfinfon/button_cricute.git"
-    # This is where we will save it on the Pi
     app_folder: "/home/pi/button_cricute"
 
   tasks:
     - name: Ensure Git is installed
-      apt:
-        name: git
-        state: present
-        update_cache: yes
+      apt: name=git state=present update_cache=yes
 
     - name: Clone the repository
       git:
@@ -22,14 +17,40 @@
         version: main
         force: yes
 
-    - name: Stop any old running version (if exists)
-      shell:
-        cmd: "docker compose down"
-        chdir: "{{ app_folder }}"
+    # --- NEW STEP: THE DETECTIVE ---
+    - name: Find the real Arduino USB Port
+      shell: "ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null | head -n 1"
+      register: usb_device
       ignore_errors: yes
 
-    - name: Build and Start the App
-      shell:
-        # --build ensures it uses the Dockerfile to create a fresh image
-        cmd: "docker compose up -d --build"
-        chdir: "{{ app_folder }}"
+    - name: Fail if no Arduino is found
+      fail:
+        msg: "CRITICAL ERROR: No Arduino found plugged into USB!"
+      when: usb_device.stdout == ""
+
+    - name: Show what we found
+      debug:
+        msg: "Found Arduino at: {{ usb_device.stdout }}"
+
+    # --- NEW STEP: THE SURGEON ---
+    - name: Update docker-compose to use the REAL port
+      replace:
+        path: "{{ app_folder }}/docker-compose.yaml"
+        regexp: '/dev/ttyACM0'
+        replace: "{{ usb_device.stdout }}"
+
+    - name: Update docker-compose to use Privileged Mode (Fixes permissions)
+      lineinfile:
+        path: "{{ app_folder }}/docker-compose.yaml"
+        insertafter: 'restart: unless-stopped'
+        line: '    privileged: true'
+
+    # --- ORIGINAL STEPS ---
+    - name: Stop old container
+      shell: "docker compose down"
+      chdir: "{{ app_folder }}"
+      ignore_errors: yes
+
+    - name: Start Docker
+      shell: "docker compose up -d --build"
+      chdir: "{{ app_folder }}"
