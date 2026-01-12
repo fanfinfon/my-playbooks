@@ -17,7 +17,7 @@
         version: main
         force: yes
 
-    # --- NEW STEP: THE DETECTIVE ---
+    # --- THE DETECTIVE ---
     - name: Find the real Arduino USB Port
       shell: "ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null | head -n 1"
       register: usb_device
@@ -32,25 +32,27 @@
       debug:
         msg: "Found Arduino at: {{ usb_device.stdout }}"
 
-    # --- NEW STEP: THE SURGEON ---
+    # --- THE SURGEON ---
     - name: Update docker-compose to use the REAL port
       replace:
         path: "{{ app_folder }}/docker-compose.yaml"
         regexp: '/dev/ttyACM0'
         replace: "{{ usb_device.stdout }}"
 
-    - name: Update docker-compose to use Privileged Mode (Fixes permissions)
+    - name: Update docker-compose to use Privileged Mode
       lineinfile:
         path: "{{ app_folder }}/docker-compose.yaml"
         insertafter: 'restart: unless-stopped'
         line: '    privileged: true'
 
-    # --- ORIGINAL STEPS ---
+    # --- STOP & START (FIXED SYNTAX) ---
     - name: Stop old container
-      shell: "docker compose down"
-      chdir: "{{ app_folder }}"
+      shell:
+        cmd: "docker compose down"
+        chdir: "{{ app_folder }}"
       ignore_errors: yes
 
     - name: Start Docker
-      shell: "docker compose up -d --build"
-      chdir: "{{ app_folder }}"
+      shell:
+        cmd: "docker compose up -d --build"
+        chdir: "{{ app_folder }}"
