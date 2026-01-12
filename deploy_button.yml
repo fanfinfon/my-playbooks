@@ -1,10 +1,12 @@
 ---
-- name: Deploy Button Cricute App (Auto-Fix USB)
+- name: Deploy Button Cricute App (Fix Filename)
   hosts: all
   become: yes
   vars:
     repo_url: "https://github.com/fanfinfon/button_cricute.git"
     app_folder: "/home/pi/button_cricute"
+    # UPDATED: Changed from .yaml to .yml
+    compose_file: "{{ app_folder }}/docker-compose.yml" 
 
   tasks:
     - name: Ensure Git is installed
@@ -16,6 +18,15 @@
         dest: "{{ app_folder }}"
         version: main
         force: yes
+
+    # --- DEBUG STEP: SEE THE FILES ---
+    - name: List files in the folder (To check the name)
+      shell: "ls -la {{ app_folder }}"
+      register: file_list
+
+    - name: Show me the files
+      debug:
+        msg: "The files in the folder are: {{ file_list.stdout_lines }}"
 
     # --- THE DETECTIVE ---
     - name: Find the real Arduino USB Port
@@ -32,20 +43,20 @@
       debug:
         msg: "Found Arduino at: {{ usb_device.stdout }}"
 
-    # --- THE SURGEON ---
+    # --- THE SURGEON (FIXED PATH) ---
     - name: Update docker-compose to use the REAL port
       replace:
-        path: "{{ app_folder }}/docker-compose.yaml"
+        path: "{{ compose_file }}"
         regexp: '/dev/ttyACM0'
         replace: "{{ usb_device.stdout }}"
 
     - name: Update docker-compose to use Privileged Mode
       lineinfile:
-        path: "{{ app_folder }}/docker-compose.yaml"
+        path: "{{ compose_file }}"
         insertafter: 'restart: unless-stopped'
         line: '    privileged: true'
 
-    # --- STOP & START (FIXED SYNTAX) ---
+    # --- STOP & START ---
     - name: Stop old container
       shell:
         cmd: "docker compose down"
