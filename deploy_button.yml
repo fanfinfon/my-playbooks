@@ -1,0 +1,35 @@
+---
+- name: Deploy Button Cricute App
+  hosts: all
+  become: yes
+  vars:
+    # This is the repo you asked for
+    repo_url: "https://github.com/fanfinfon/button_cricute.git"
+    # This is where we will save it on the Pi
+    app_folder: "/home/pi/button_cricute"
+
+  tasks:
+    - name: Ensure Git is installed
+      apt:
+        name: git
+        state: present
+        update_cache: yes
+
+    - name: Clone the repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_folder }}"
+        version: main
+        force: yes
+
+    - name: Stop any old running version (if exists)
+      shell:
+        cmd: "docker compose down"
+        chdir: "{{ app_folder }}"
+      ignore_errors: yes
+
+    - name: Build and Start the App
+      shell:
+        # --build ensures it uses the Dockerfile to create a fresh image
+        cmd: "docker compose up -d --build"
+        chdir: "{{ app_folder }}"
